@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎵 聽前奏猜歌｜80首測試版</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"Noto Sans TC","Microsoft JhengHei",sans-serif;background:#f7f4ef;display:flex;justify-content:center;align-items:center;padding:20px;color:#333}.container{width:100%;max-width:600px;text-align:center}h1{font-size:36px;margin:0 0 8px}.subtitle{font-size:16px;color:#777;margin-bottom:24px}.game-card{background:#fff;border-radius:24px;padding:24px;box-shadow:0 8px 30px rgba(0,0,0,.08)}.player-wrapper{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:16px;overflow:hidden;margin-bottom:20px}#player{position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none}.cover{position:absolute;inset:0;background:#000;z-index:2;display:flex;align-items:center;justify-content:center;color:#fff;font-size:20px;font-weight:bold}.cover.hidden{display:none}.question-number{font-size:15px;color:#888;margin-bottom:8px}.question{font-size:26px;font-weight:bold;min-height:40px;margin-bottom:20px}.answer{font-size:22px;font-weight:bold;margin:18px 0;min-height:34px}.answer.hidden{visibility:hidden}button{width:100%;border:0;border-radius:14px;padding:15px 20px;font-size:18px;font-weight:bold;cursor:pointer;margin-top:10px}button:disabled{opacity:.45;cursor:not-allowed}.play-btn{background:#222;color:#fff}.answer-btn{background:#eee;color:#333}.next-btn{background:#ddd;color:#333}.status{margin-top:18px;font-size:14px;color:#888;line-height:1.5}.note{margin-top:12px;font-size:12px;color:#aaa;line-height:1.5}@media(max-width:500px){h1{font-size:30px}.game-card{padding:18px}.question{font-size:22px}}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🎵 聽前奏猜歌</h1>
+<div class="subtitle">80 首測試版｜8 秒起始＋每次繼續 5 秒</div>
+<div class="game-card">
+<div class="player-wrapper"><div id="player"></div><div class="cover" id="cover">🎵 準備好了嗎？</div></div>
+<div class="question-number" id="questionNumber">載入題庫中…</div>
+<div class="question">猜猜這是哪一首歌？</div>
+<button class="play-btn" id="playButton" onclick="playSegmentButton()" disabled>▶️ 播放前奏</button>
+<button class="answer-btn" id="answerButton" onclick="showAnswer()" disabled>👀 公布答案</button>
+<div class="answer hidden" id="answer">答案</div>
+<button class="next-btn" id="nextButton" onclick="nextSong()" disabled>➡️ 下一題</button>
+<div class="status" id="status">正在載入 YouTube 題庫…</div>
+<div class="note">本測試版先用 YouTube 公開國語歌曲播放清單作為 80 首測試來源；正式版會改成我們自己整理的歌曲＋指定影片。</div>
+</div></div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+const TEST_PLAYLIST_ID="PLTGmcDaiiykNIkKEGOVikdcN3QQ7ajFb8";
+const ROUND_SIZE=80;
+let player=null,allVideoIds=[],roundSongs=[],currentIndex=0,isPlaying=false,playedSeconds=0,timer=null;
+const firstPlaySeconds=8,continuePlaySeconds=5;
+
+function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+
+function onYouTubeIframeAPIReady(){
+ player=new YT.Player("player",{width:"480",height:"270",playerVars:{autoplay:0,controls:0,rel:0,playsinline:1},
+ events:{
+  onReady:function(){player.cuePlaylist({listType:"playlist",list:TEST_PLAYLIST_ID,index:0})},
+  onStateChange:function(e){
+   if(e.data===YT.PlayerState.CUED && allVideoIds.length===0) initializeRound();
+   if(e.data===YT.PlayerState.PLAYING){isPlaying=true}
+   if(e.data===YT.PlayerState.PAUSED){isPlaying=false}
+  },
+  onAutoplayBlocked:function(){isPlaying=false;document.getElementById("status").textContent="瀏覽器阻擋播放，請再按一次播放按鈕。";updatePlayButton()}
+ }});
+}
+
+function initializeRound(){
+ allVideoIds=player.getPlaylist()||[];
+ if(!allVideoIds.length){document.getElementById("status").textContent="題庫載入失敗，請重新整理頁面。";return}
+ roundSongs=shuffle(allVideoIds).slice(0,Math.min(ROUND_SIZE,allVideoIds.length));
+ currentIndex=0;loadSong();
+}
+
+function loadSong(){
+ clearTimeout(timer);isPlaying=false;playedSeconds=0;
+ const id=roundSongs[currentIndex];
+ document.getElementById("questionNumber").textContent=`第 ${currentIndex+1} / ${roundSongs.length} 題`;
+ document.getElementById("answer").textContent="答案";
+ document.getElementById("answer").classList.add("hidden");
+ document.getElementById("playButton").disabled=false;
+ document.getElementById("playButton").textContent="▶️ 播放前奏";
+ document.getElementById("answerButton").disabled=false;
+ document.getElementById("nextButton").disabled=true;
+ document.getElementById("status").textContent="已播放 0 秒";
+ document.getElementById("cover").classList.remove("hidden");
+ player.cueVideoById(id);
+ setTimeout(function(){const d=player.getVideoData?player.getVideoData():null;document.getElementById("answer").textContent=d&&d.title?cleanTitle(d.title):"這首歌"},800);
+}
+
+function cleanTitle(t){return t.replace(/\s*Official Music Video\s*/gi,"").replace(/\s*Official MV\s*/gi,"").replace(/\s*Lyrics?\s*/gi,"").trim()}
+
+function playSegmentButton(){
+ if(!player||isPlaying)return;
+ if(playedSeconds===0){player.seekTo(0,true);playSegment(firstPlaySeconds)}else playSegment(continuePlaySeconds);
+ updatePlayButton();
+}
+
+function playSegment(sec){
+ clearTimeout(timer);document.getElementById("cover").classList.add("hidden");player.playVideo();isPlaying=true;updatePlayButton();
+ timer=setTimeout(function(){player.pauseVideo();isPlaying=false;playedSeconds+=sec;document.getElementById("status").textContent=`已播放 ${playedSeconds} 秒`;updatePlayButton()},sec*1000);
+}
+
+function updatePlayButton(){
+ const b=document.getElementById("playButton");
+ if(isPlaying){b.disabled=true;b.textContent="🎵 播放中…"}else{b.disabled=false;b.textContent=playedSeconds===0?"▶️ 播放前奏":"▶️ 繼續播放 5 秒"}
+}
+
+function showAnswer(){
+ clearTimeout(timer);if(player)player.pauseVideo();isPlaying=false;
+ document.getElementById("answer").classList.remove("hidden");
+ document.getElementById("nextButton").disabled=false;
+ document.getElementById("playButton").disabled=true;
+ document.getElementById("status").textContent=`本題共播放 ${playedSeconds} 秒`;
+}
+
+function nextSong(){
+ currentIndex++;
+ if(currentIndex>=roundSongs.length){alert("🎉 80 首測試完成！下一輪會重新洗牌。");roundSongs=shuffle(allVideoIds).slice(0,Math.min(ROUND_SIZE,allVideoIds.length));currentIndex=0}
+ loadSong();
+}
+</script>
+</body>
+</html>
